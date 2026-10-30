@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<title>QUnit HTML Reporter Test Suite</title>
+
+	<script>
+	// Load this suite from a crafted URL before QUnit reads it: the HTML reporter
+	// copies location.pathname and the query string into its markup.
+	// Only the last path segment is replaced so relative resources still resolve.
+	window.history.replaceState( null, "",
+		window.location.pathname.replace( /[^\/]*$/,
+			"qunit-reporter.html'onmouseover='window.qunitReporterXss=1'" ) +
+		"?xss'data-xss&eq=a=b&maxDepth=" + encodeURIComponent( "<b>xss</b>" ) );
+	</script>
+	<script src="../../../external/requirejs/require.js"></script>
+	<script src="../../lib/css.js"></script>
+	<script src="../../lib/bootstrap.js" data-modules="core"></script>
+</head>
+<body>
+
+<div id="qunit"></div>
+<div id="qunit-fixture"></div>
+
+</body>
+</html>
