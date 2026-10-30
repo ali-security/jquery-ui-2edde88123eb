@@ -229,6 +229,52 @@ QUnit.test( "error handling", function( assert ) {
 	$.error = error;
 } );
 
+QUnit.test( "Prototype pollution", function( assert ) {
+	assert.expect( 3 );
+
+	var elem = $( "<div>" );
+
+	$.widget( "ui.testWidget", {} );
+
+	elem.testWidget();
+
+	try {
+		$.widget( "ui.__proto__", {} );
+	} catch ( _e ) {}
+	try {
+		$.widget( "ui.constructor", {} );
+	} catch ( _e ) {}
+
+	assert.strictEqual( Object.getPrototypeOf( $.ui ), Object.prototype,
+		"$.ui constructor not modified" );
+	assert.ok( $.ui instanceof Object, "$.ui is an Object instance" );
+	assert.notOk( $.ui instanceof Function, "$.ui is not a Function instance" );
+} );
+
+QUnit.test( "Prototype pollution - reserved widget names are rejected", function( assert ) {
+	assert.expect( 4 );
+
+	var error = $.error;
+	var messages = [];
+	var fnPrototype = Object.getPrototypeOf( $.fn );
+	var fnConstructor = $.fn.constructor;
+
+	$.error = function( msg ) {
+		messages.push( msg );
+	};
+	$.widget( "ui.__proto__", {} );
+	$.widget( "ui.constructor", {} );
+	$.error = error;
+
+	assert.deepEqual( messages, [
+		"Invalid widget name: __proto__",
+		"Invalid widget name: constructor"
+	], "reserved widget names are reported via $.error" );
+	assert.ok( !$.ui.hasOwnProperty( "constructor" ), "$.ui.constructor not defined" );
+	assert.strictEqual( Object.getPrototypeOf( $.fn ), fnPrototype, "$.fn prototype not modified" );
+	assert.strictEqual( $.fn.constructor, fnConstructor, "$.fn.constructor not modified" );
+} );
+
 QUnit.test( "merge multiple option arguments", function( assert ) {
 	assert.expect( 1 );
 	$.widget( "ui.testWidget", {
