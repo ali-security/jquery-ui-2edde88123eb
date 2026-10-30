@@ -8,9 +8,27 @@ define( [
 QUnit.module( "datepicker: methods" );
 
 QUnit.test( "destroy", function( assert ) {
-	assert.expect( 33 );
+	assert.expect( 39 );
 	var inl,
-		inp = testHelper.init( "#inp" );
+		inp = testHelper.init( "#inp" ),
+		dp = $( "#ui-datepicker-div" );
+
+	// Destroy and clear active reference
+	inp.datepicker( "show" );
+	assert.equal( dp.css( "display" ), "block", "Datepicker - visible" );
+	inp.datepicker( "hide" ).datepicker( "destroy" );
+	assert.ok( $.datepicker._curInst == null, "Datepicker - destroyed and cleared reference" );
+	assert.equal( dp.css( "display" ), "none", "Datepicker - absent" );
+
+	// Destroy without manual hiding (ensure datepicker is hidden after calling destroy)
+	inp = testHelper.init( "#inp" );
+	inp.datepicker( "show" );
+	assert.equal( dp.css( "display" ), "block", "Datepicker - visible" );
+	inp.datepicker( "destroy" );
+	assert.ok( $.datepicker._curInst == null, "Datepicker - destroyed and cleared reference" );
+	assert.equal( dp.css( "display" ), "none", "Datepicker - absent" );
+
+	inp = testHelper.init( "#inp" );
 	assert.ok( inp.is( ".hasDatepicker" ), "Default - marker class set" );
 	assert.ok( $.data( inp[ 0 ], testHelper.PROP_NAME ), "Default - instance present" );
 	assert.ok( inp.next().is( "#alt" ), "Default - button absent" );
