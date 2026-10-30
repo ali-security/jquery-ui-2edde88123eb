@@ -36,6 +36,51 @@
 	}
 }( function( $ ) {
 
+// Escape a string so that it can be safely used as an identifier in a selector,
+// e.g. as the ID in an ID selector. Every character that has a special meaning
+// in a selector - including backslashes - gets escaped.
+// Support: IE, Edge <79, Safari <10, PhantomJS
+// Use the native CSS.escape() when available, otherwise fall back to
+// the CSSOM "serialize an identifier" algorithm.
+// https://drafts.csswg.org/cssom/#serialize-an-identifier
+var escapeIdentifier = ( function() {
+	var rcssescape = /([\0-\x1f\x7f]|^-?\d)|^-$|[^\0-\x1f\x7f-\uFFFF\w-]/g;
+
+	function fcssescape( ch, asCodePoint ) {
+		if ( asCodePoint ) {
+
+			// U+0000 NULL becomes U+FFFD REPLACEMENT CHARACTER
+			if ( ch === "\0" ) {
+				return "\uFFFD";
+			}
+
+			// Control characters and (dependent upon position) numbers get escaped as code points
+			return ch.slice( 0, -1 ) + "\\" +
+				ch.charCodeAt( ch.length - 1 ).toString( 16 ) + " ";
+		}
+
+		// Other potentially-special ASCII characters get backslash-escaped
+		return "\\" + ch;
+	}
+
+	return function( identifier ) {
+		if ( window.CSS && typeof window.CSS.escape === "function" ) {
+			return window.CSS.escape( identifier );
+		}
+		return identifier.replace( rcssescape, fcssescape );
+	};
+} )();
+
+// Decoding may throw an error if the hash isn't valid UTF-8 (#9518),
+// keep the raw value in that case.
+function decodeHash( hash ) {
+	try {
+		return decodeURIComponent( hash );
+	} catch ( error ) {
+		return hash;
+	}
+}
+
 $.widget( "ui.tabs", {
 	version: "1.12.1",
 	delay: 300,
@@ -120,7 +165,8 @@ $.widget( "ui.tabs", {
 	_initialActive: function() {
 		var active = this.options.active,
 			collapsible = this.options.collapsible,
-			locationHash = location.hash.substring( 1 );
+			locationHash = location.hash.substring( 1 ),
+			locationHashDecoded = decodeHash( locationHash );
 
 		if ( active === null ) {
 
@@ -132,6 +178,18 @@ $.widget( "ui.tabs", {
 						return false;
 					}
 				} );
+
+				// If not found, decode the hash & try again.
+				// See the comment in `_processTabs` under the `_isLocal` check
+				// for more information.
+				if ( active === null ) {
+					this.tabs.each( function( i, tab ) {
+						if ( $( tab ).attr( "aria-controls" ) === locationHashDecoded ) {
+							active = i;
+							return false;
+						}
+					} );
+				}
 			}
 
 			// Check for a tab marked active via a class
@@ -311,8 +369,15 @@ $.widget( "ui.tabs", {
 		}
 	},
 
+	// Turn a fragment identifier ("#id") into a selector that only matches
+	// the element with exactly that ID
 	_sanitizeSelector: function( hash ) {
-		return hash ? hash.replace( /[!"$%&'()*+,.\/:;<=>?@\[\]\^`{|}~]/g, "\\$&" ) : "";
+		if ( !hash ) {
+			return "";
+		}
+		return hash.charAt( 0 ) === "#" ?
+			"#" + escapeIdentifier( hash.substring( 1 ) ) :
+			escapeIdentifier( hash );
 	},
 
 	refresh: function() {
@@ -446,9 +511,24 @@ $.widget( "ui.tabs", {
 
 			// Inline tab
 			if ( that._isLocal( anchor ) ) {
+
+				// The "scrolling to a fragment" section of the HTML spec:
+				// https://html.spec.whatwg.org/#scrolling-to-a-fragment
+				// uses a concept of document's indicated part:
+				// https://html.spec.whatwg.org/#the-indicated-part-of-the-document
+				// Slightly below there's an algorithm to compute the indicated
+				// part:
+				// https://html.spec.whatwg.org/#the-indicated-part-of-the-document
+				// First, the algorithm tries the hash as-is, without decoding.
+				// Then, if one is not found, the same is attempted with a decoded
+				// hash. Replicate this logic.
 				selector = anchor.hash;
 				panelId = selector.substring( 1 );
 				panel = that.element.find( that._sanitizeSelector( selector ) );
+				if ( !panel.length ) {
+					panelId = decodeHash( panelId );
+					panel = that.element.find( that._sanitizeSelector( "#" + panelId ) );
+				}
 
 			// remote tab
 			} else {
@@ -457,7 +537,7 @@ $.widget( "ui.tabs", {
 				// generate an id by using a throw-away element
 				panelId = tab.attr( "aria-controls" ) || $( {} ).uniqueId()[ 0 ].id;
 				selector = "#" + panelId;
-				panel = that.element.find( selector );
+				panel = that.element.find( that._sanitizeSelector( selector ) );
 				if ( !panel.length ) {
 					panel = that._createPanel( panelId );
 					panel.insertAfter( that.panels[ i - 1 ] || that.tablist );

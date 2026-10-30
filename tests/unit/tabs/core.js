@@ -82,6 +82,171 @@ QUnit.test( "non-tab list items", function( assert ) {
 		"first actual tab is active" );
 } );
 
+QUnit.test( "ID escaping backslashes", function( assert ) {
+	assert.expect( 5 );
+
+	location.hash = "#fragment\b-2";
+
+	var element = $( "#tabs1" )
+		.find( "a[href='#fragment-2']" )
+			.attr( "href", "#fragment\b-2" )
+		.end()
+		.find( "#fragment-2" )
+			.attr( "id", "fragment\b-2" )
+		.end()
+		.tabs();
+	var tabs = element.find( ".ui-tabs-nav li" );
+	var anchors = tabs.find( ".ui-tabs-anchor" );
+	var panels = element.find( ".ui-tabs-panel" );
+
+	assert.strictEqual( element.tabs( "option", "active" ), 1,
+		"should set the active option" );
+
+	assert.strictEqual( anchors.length, 3, "should decorate all anchors" );
+	assert.strictEqual( panels.length, 3, "should decorate all panels" );
+
+	assert.strictEqual( panels.eq( 1 ).attr( "aria-labelledby" ), anchors.eq( 1 ).attr( "id" ),
+		"panel 2 aria-labelledby equals anchor 2 id" );
+	assert.strictEqual( tabs.eq( 1 ).attr( "aria-controls" ), "fragment\b-2",
+		"tab 2 aria-controls" );
+
+	location.hash = "";
+} );
+
+( function() {
+	function isShown() {
+		return $( this ).css( "display" ) !== "none";
+	}
+
+	QUnit.test( "ID escaping: backslashes can't break out of the ID selector", function( assert ) {
+		assert.expect( 4 );
+
+		var element = $( "#tabs1" ),
+			sanitizeSelector = $.ui.tabs.prototype._sanitizeSelector;
+
+		// An unescaped backslash used to cancel out the escaping of the next character,
+		// e.g. "#fragment-1\,div" became "#fragment-1\\,div" which matches every div
+		assert.strictEqual( element.find( sanitizeSelector( "#fragment-1\\,div" ) ).length, 0,
+			"backslash followed by a comma doesn't start a new selector" );
+		assert.strictEqual( element.find( sanitizeSelector( "#fragment-1\\" ) ).length, 0,
+			"trailing backslash doesn't produce an invalid selector" );
+
+		element.find( "#fragment-1" ).attr( "id", "fragment-1\\,div" );
+		assert.strictEqual( element.find( sanitizeSelector( "#fragment-1\\,div" ) ).length, 1,
+			"ID containing a backslash is matched exactly" );
+		assert.strictEqual( element.find( sanitizeSelector( "#fragment-1\\,div" ) )[ 0 ],
+			element.find( "div" )[ 0 ], "the element with the ID is matched" );
+	} );
+
+	QUnit.test( "ID escaping: backslashes in the href of a local tab", function( assert ) {
+		assert.expect( 6 );
+
+		var element = $( "#tabs1" )
+			.find( "a[href='#fragment-2']" )
+				.attr( "href", "#fragment-2\\,div" )
+			.end()
+			.find( "#fragment-2" )
+				.attr( "id", "fragment-2\\,div" )
+			.end()
+			.tabs();
+		var tabs = element.find( ".ui-tabs-nav li" );
+		var anchors = tabs.find( ".ui-tabs-anchor" );
+		var panels = element.find( ".ui-tabs-panel" );
+
+		assert.strictEqual( panels.length, 3, "should decorate all panels" );
+		assert.strictEqual( panels.eq( 0 ).attr( "aria-labelledby" ), anchors.eq( 0 ).attr( "id" ),
+			"panel 1 aria-labelledby equals anchor 1 id" );
+		assert.strictEqual( panels.eq( 1 ).attr( "aria-labelledby" ), anchors.eq( 1 ).attr( "id" ),
+			"panel 2 aria-labelledby equals anchor 2 id" );
+		assert.strictEqual( tabs.eq( 1 ).attr( "aria-controls" ), "fragment-2\\,div",
+			"tab 2 aria-controls" );
+
+		element.tabs( "option", "active", 1 );
+		assert.strictEqual( panels.filter( isShown ).length, 1, "only one panel is shown" );
+		assert.strictEqual( panels.filter( isShown )[ 0 ], panels[ 1 ], "panel 2 is shown" );
+	} );
+
+	QUnit.test( "ID escaping: backslashes in aria-controls of a remote tab", function( assert ) {
+		assert.expect( 5 );
+
+		var element = $( "#tabs1" );
+		element.find( "ul" ).append(
+			"<li aria-controls='fragment-4\\,div'><a href='data/test.html'>4</a></li>" );
+		element.tabs( {
+			beforeLoad: function() {
+				return false;
+			}
+		} );
+		var tabs = element.find( ".ui-tabs-nav li" );
+		var panels = element.find( ".ui-tabs-panel" );
+		var remotePanel = element.tabs( "instance" )._getPanelForTab( tabs.eq( 3 ) );
+
+		assert.strictEqual( panels.length, 4, "should create a panel for the remote tab" );
+		assert.strictEqual( remotePanel.length, 1, "only one panel is found for the remote tab" );
+		assert.strictEqual( remotePanel.attr( "id" ), "fragment-4\\,div", "remote panel id" );
+
+		element.tabs( "option", "active", 3 );
+		assert.strictEqual( panels.filter( isShown ).length, 1, "only one panel is shown" );
+		assert.strictEqual( panels.filter( isShown )[ 0 ], remotePanel[ 0 ],
+			"remote panel is shown" );
+	} );
+
+	QUnit.test( "ID escaping: selectors in aria-controls of a remote tab", function( assert ) {
+		assert.expect( 6 );
+
+		var element = $( "#tabs1" );
+		element.find( "ul" ).append(
+			"<li aria-controls='fragment-4, div'><a href='data/test.html'>4</a></li>" );
+		element.tabs( {
+			beforeLoad: function() {
+				return false;
+			}
+		} );
+		var tabs = element.find( ".ui-tabs-nav li" );
+		var anchors = tabs.find( ".ui-tabs-anchor" );
+		var panels = element.find( ".ui-tabs-panel" );
+		var remotePanel = element.tabs( "instance" )._getPanelForTab( tabs.eq( 3 ) );
+
+		assert.strictEqual( panels.length, 4, "should create a panel for the remote tab" );
+		assert.strictEqual( panels.eq( 0 ).attr( "aria-labelledby" ), anchors.eq( 0 ).attr( "id" ),
+			"panel 1 aria-labelledby equals anchor 1 id" );
+		assert.strictEqual( panels.eq( 0 ).attr( "aria-live" ), undefined,
+			"panel 1 is not treated as a remote panel" );
+		assert.strictEqual( remotePanel.attr( "id" ), "fragment-4, div", "remote panel id" );
+
+		element.tabs( "option", "active", 3 );
+		assert.strictEqual( panels.filter( isShown ).length, 1, "only one panel is shown" );
+		assert.strictEqual( panels.filter( isShown )[ 0 ], remotePanel[ 0 ],
+			"remote panel is shown" );
+	} );
+
+	QUnit.test( "malformed percent-encoding in the hash", function( assert ) {
+		assert.expect( 4 );
+
+		// Decoding "%E0%A4%A" throws a URIError; neither the URL hash
+		// nor a tab without a matching panel should break initialization
+		location.hash = "#%E0%A4%A";
+
+		var element = $( "#tabs1" )
+			.find( "a[href='#fragment-2']" )
+				.attr( "href", "#%E0%A4%A" )
+			.end()
+			.tabs();
+		var tabs = element.find( ".ui-tabs-nav li" );
+		var anchors = tabs.find( ".ui-tabs-anchor" );
+
+		assert.ok( element.tabs( "instance" ), "should initialize the widget" );
+		assert.strictEqual( element.tabs( "option", "active" ), 1,
+			"should set the active option" );
+		assert.strictEqual( element.find( ".ui-tabs-panel" ).length, 2,
+			"should decorate the existing panels" );
+		assert.strictEqual( tabs.eq( 1 ).attr( "aria-controls" ),
+			anchors.eq( 1 ).prop( "hash" ).substring( 1 ), "tab 2 aria-controls" );
+
+		location.hash = "";
+	} );
+} )();
+
 QUnit.test( "aria-controls", function( assert ) {
 	assert.expect( 7 );
 	var element = $( "#tabs1" ).tabs(),
@@ -662,5 +827,60 @@ QUnit.test( "#4033 - IE expands hash to full url and misinterprets tab as ajax",
 	assert.equal( element.find( ".ui-tabs-nav li" ).attr( "aria-controls" ), "tab", "aria-contorls attribute is correct" );
 	state( assert, element, 1 );
 } );
+
+( function() {
+	function getVerifyTab( assert, element ) {
+		return function verifyTab( index ) {
+			assert.strictEqual(
+				element.tabs( "option", "active" ),
+				index,
+				"should set the active option to " + index );
+			assert.strictEqual(
+				element.find( "[role='tabpanel']:visible" ).text().trim(),
+				"Tab " + ( index + 1 ),
+				"should set the panel to 'Tab " + ( index + 1 ) + "'" );
+		};
+	}
+
+	QUnit.test( "href encoding/decoding (gh-2344)", function( assert ) {
+		assert.expect( 12 );
+
+		location.hash = "#tabs-2";
+
+		var i,
+			element = $( "#tabs10" ).tabs(),
+			tabLinks = element.find( "> ul a" ),
+			verifyTab = getVerifyTab( assert, element );
+
+		for ( i = 0; i < tabLinks.length; i++ ) {
+			tabLinks.eq( i ).trigger( "click" );
+			verifyTab( i );
+		}
+
+		location.hash = "";
+	} );
+
+	QUnit.test( "href encoding/decoding on init (gh-2344)", function( assert ) {
+		assert.expect( 12 );
+
+		var i,
+			element = $( "#tabs10" ),
+			tabLinks = element.find( "> ul a" ),
+			verifyTab = getVerifyTab( assert, element );
+
+		for ( i = 0; i < tabLinks.length; i++ ) {
+
+			// Support: PhantomJS
+			// The location.hash setter mangles non-ASCII characters, so use the
+			// percent-encoded hash of the link, which is what browsers store anyway.
+			location.hash = tabLinks.eq( i ).prop( "hash" );
+			element.tabs();
+			verifyTab( i );
+			element.tabs( "destroy" );
+		}
+
+		location.hash = "";
+	} );
+} )();
 
 } );
