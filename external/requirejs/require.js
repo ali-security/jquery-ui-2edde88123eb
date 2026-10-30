@@ -92,7 +92,7 @@ var requirejs, require, define;
     function eachProp(obj, func) {
         var prop;
         for (prop in obj) {
-            if (hasProp(obj, prop)) {
+            if (hasProp(obj, prop) && prop !== '__proto__' && prop !== 'constructor') {
                 if (func(obj[prop], prop)) {
                     break;
                 }
