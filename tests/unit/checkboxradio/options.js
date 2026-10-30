@@ -203,4 +203,25 @@ QUnit.test( "label", function( assert ) {
 		"bar", "When null is passed text from dom is used in dom" );
 } );
 
+QUnit.test(
+	"label - initial text label not turned to HTML when setting an option",
+	function( assert ) {
+		var label = $( "<label><input type='checkbox'>" +
+				"&lt;img src='' onerror='window.checkboxradioXss = true'&gt;</label>" )
+				.appendTo( "#qunit-fixture" ),
+			checkbox = label.find( "input" );
+
+		assert.expect( 2 );
+
+		checkbox.checkboxradio( { icon: false } );
+		checkbox.checkboxradio( "option", "icon", true );
+
+		assert.strictEqual( label.find( "img" ).length, 0,
+			"Encoded HTML in the label text is not decoded into elements" );
+		assert.strictEqual( $.trim( label.text() ),
+			"<img src='' onerror='window.checkboxradioXss = true'>",
+			"Label text is preserved" );
+	}
+);
+
 } );

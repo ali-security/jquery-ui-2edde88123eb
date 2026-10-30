@@ -29,6 +29,29 @@ QUnit.test(
 	}
 );
 
+QUnit.test(
+	"Resetting a checkbox's form should not turn an initial text label into HTML",
+	function( assert ) {
+		var ready = assert.async();
+		assert.expect( 2 );
+		var form = $( "<form>" +
+			"<label><input type='checkbox'>&lt;b&gt;I'm a label&lt;/b&gt;</label>" +
+			"</form>" ),
+			label = form.find( "label" );
+
+		form.find( "input" ).checkboxradio( { icon: false } );
+		form.get( 0 ).reset();
+
+		setTimeout( function() {
+			assert.strictEqual( label.find( "b" ).length, 0,
+				"Encoded HTML in the label text is not decoded into elements" );
+			assert.strictEqual( $.trim( label.text() ), "<b>I'm a label</b>",
+				"Label text is preserved" );
+			ready();
+		}, 1 );
+	}
+);
+
 QUnit.test( "Checkbox shows focus when using keyboard navigation", function( assert ) {
 	var ready = assert.async();
 	assert.expect( 2 );
